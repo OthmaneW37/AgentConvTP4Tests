@@ -18,7 +18,7 @@ import dev.langchain4j.rag.RetrievalAugmentor;
 import dev.langchain4j.rag.content.retriever.ContentRetriever;
 import dev.langchain4j.rag.content.retriever.EmbeddingStoreContentRetriever;
 import dev.langchain4j.rag.content.retriever.WebSearchContentRetriever;
-import dev.langchain4j.rag.query.router.DefaultQueryRouter;
+import dev.langchain4j.rag.query.router.LanguageModelQueryRouter;
 import dev.langchain4j.rag.query.router.QueryRouter;
 import dev.langchain4j.service.AiServices;
 import dev.langchain4j.store.embedding.EmbeddingStore;
@@ -26,7 +26,9 @@ import dev.langchain4j.store.embedding.inmemory.InMemoryEmbeddingStore;
 import dev.langchain4j.web.search.WebSearchEngine;
 import dev.langchain4j.web.search.tavily.TavilyWebSearchEngine;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.ConsoleHandler;
 import java.util.logging.Level;
@@ -82,8 +84,21 @@ public class Test4 {
                 .webSearchEngine(webSearchEngine)
                 .build();
 
-        // Les 2 ContentRetrievers sont toujours utilisés.
-        QueryRouter queryRouter = new DefaultQueryRouter(contentRetrieverPdf, contentRetrieverWeb);
+        // Première version : les 2 ContentRetrievers sont toujours utilisés.
+        // Problème : DefaultQueryRouter envoie la requête à tous les ContentRetrievers.
+        // Même pour une question sur l'actualité, des segments du PDF sont ajoutés au prompt
+        // dès que leur score dépasse 0,5 (ce qui arrive souvent avec des segments courts).
+        // QueryRouter queryRouter = new DefaultQueryRouter(contentRetrieverPdf, contentRetrieverWeb);
+
+        // Correction (bonus) : le LM choisit la ou les sources à utiliser, comme dans le test sur le routage.
+        Map<ContentRetriever, String> descriptions = new HashMap<>();
+        descriptions.put(contentRetrieverPdf,
+                "Support de cours sur le RAG (Retrieval Augmented Generation) et le fine-tuning "
+                        + "des modèles de langage");
+        descriptions.put(contentRetrieverWeb,
+                "Recherche sur le Web : actualités, événements récents, informations générales "
+                        + "qui ne sont pas dans le support de cours");
+        QueryRouter queryRouter = new LanguageModelQueryRouter(model, descriptions);
 
         RetrievalAugmentor retrievalAugmentor = DefaultRetrievalAugmentor.builder()
                 .queryRouter(queryRouter)
